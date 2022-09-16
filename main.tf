@@ -85,7 +85,7 @@ resource "aws_instance" "jenkins" {
   ami             = data.aws_ami.redhat.id
   instance_type   = "t2.micro"
   security_groups = [aws_security_group.web_traffic.name]
-  key_name        = "calis"
+  key_name        = "rapha"
 
   tags = {
     "Name" = "Jenkins"  }
@@ -100,7 +100,7 @@ resource "null_resource" "name" {
     host        = aws_instance.jenkins.public_ip
     user        = "ec2-user"
     password    = ""
-    private_key = file("calis.pem")
+    private_key = file("rapha.pem")
   }
 
   provisioner "remote-exec" {
