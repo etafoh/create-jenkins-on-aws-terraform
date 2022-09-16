@@ -27,7 +27,7 @@ variable "ingressrules" {
 }
 
 resource "aws_security_group" "web_traffic" {
-  name        = "Allow web traffic"
+  name        = "web traffic"
   description = "inbound ports for ssh and standard http and everything outbound"
   dynamic "ingress" { #iterator = port
     for_each = var.ingressrules
@@ -64,7 +64,7 @@ data "aws_ami" "redhat" {
   owners = [ "amazon" ]
   filter {
     name = "name"
-    values = ["RHEL-8.6.0_HVM-20220503-x86_64*"]
+    values = ["RHEL-8.6.0_HV*"]
   }
   filter {
     name = "root-device-type"
@@ -105,13 +105,21 @@ resource "null_resource" "name" {
 
   provisioner "remote-exec" {
     inline = [
-      "sudo yum install -y jenkins java-11-openjdk-devel",
       "sudo yum -y install wget",
       "sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo",
       "sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key",
       "sudo yum upgrade -y",
+      "sudo yum install java-11-openjdk -y",
       "sudo yum install jenkins -y",
+      "sudo systemctl daemon-reload",
+      "sudo systemctl enable jenkins",
       "sudo systemctl start jenkins",
     ]
   }
+}
+
+# jenkins server URL
+output "jenkins_server_ip" {
+  description = "public IP address of jenkins server"
+  value       = aws_instance.jenkins.public_ip 
 }
