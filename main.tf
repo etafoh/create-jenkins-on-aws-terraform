@@ -5,8 +5,13 @@ terraform {
     aws = {
       source  = "hashicorp/aws"
       version = ">= 3.0"
-    }           
-  }   
+    }
+
+    null = {
+      source = "hashicorp/null"
+      version = ">= 3.0"
+    } 
+  }
 }
 
 # Provider Block
@@ -20,17 +25,27 @@ variable "ingressrules" {
   type    = list(number)
   default = [8080, 22]
 }
+
 resource "aws_security_group" "web_traffic" {
   name        = "Allow web traffic"
   description = "inbound ports for ssh and standard http and everything outbound"
-  dynamic "ingress" {iterator = port
+  dynamic "ingress" { #iterator = port
     for_each = var.ingressrules
     content {
-      from_port   = port.value
-      to_port     = port.value
+      from_port   = ingress.value
+      to_port     = ingress.value
       protocol    = "TCP"
       cidr_blocks = ["0.0.0.0/0"]
     }
+
+    #   dynamic "ingress" {
+    # for_each = var.service_ports
+    # content {
+    #   from_port = ingress.value
+    #   to_port   = ingress.value
+    #   protocol  = "tcp"
+    # }
+
   }
   egress {
     from_port   = 0
@@ -44,18 +59,25 @@ resource "aws_security_group" "web_traffic" {
   }
 }
 
-# Data Block
 data "aws_ami" "redhat" {
   most_recent = true
+  owners = [ "amazon" ]
   filter {
-    name   = "name"
-    values = ["RHEL-8.6.0_HV*"]
+    name = "name"
+    values = ["RHEL-8.6.0_HVM-20220503-x86_64*"]
   }
   filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
+    name = "root-device-type"
+    values = [ "ebs" ]
   }
-  owners = ["163039012966"]
+  filter {
+    name = "virtualization-type"
+    values = [ "hvm" ]
+  }
+  filter {
+    name = "architecture"
+    values = [ "x86_64" ]
+  }
 }
 
 # resource block
@@ -65,8 +87,24 @@ resource "aws_instance" "jenkins" {
   security_groups = [aws_security_group.web_traffic.name]
   key_name        = "calis"
 
-  provisioner "remote-exec"  {
-    inline  = [
+  tags = {
+    "Name" = "Jenkins"  }
+}
+
+# Create a Null Resource and Provisioners
+resource "null_resource" "name" {
+  depends_on = [aws_instance.jenkins]
+  # Connection Block for Provisioners to connect to EC2 Instance
+  connection {
+    type        = "ssh"
+    host        = aws_instance.jenkins.public_ip
+    user        = "ec2-user"
+    password    = ""
+    private_key = file("calis.pem")
+  }
+
+  provisioner "remote-exec" {
+    inline = [
       "sudo yum install -y jenkins java-11-openjdk-devel",
       "sudo yum -y install wget",
       "sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo",
@@ -74,17 +112,6 @@ resource "aws_instance" "jenkins" {
       "sudo yum upgrade -y",
       "sudo yum install jenkins -y",
       "sudo systemctl start jenkins",
-      ]
-   }
- connection {
-    type         = "ssh"
-    host         = self.public_ip
-    user         = "ec2-user"
-    private_key  = file("color:#CE9178">"./ashnikdev_key.pem" )
-   }
-
-  tags  = {
-    "Name"      = "Jenkins"
-      }
- }
-
+    ]
+  }
+}
